@@ -74,7 +74,7 @@ log.info """
 //input
 predictions = file(params.input)
 method_name = params.participant_id.replaceAll("\\s","_")
-refset_dir = file(params.goldstandard_dir)
+refset_dir = Channel.fromPath(params.goldstandard_dir, type: 'dir')
 benchmarks = params.challenges_ids
 community_id = params.community_id
 benchmark_data = file(params.assess_dir)
@@ -91,6 +91,7 @@ result_file_path = file(params.outdir)
 data_model_export_dir = file(params.data_model_export_dir)
 otherdir = file(params.otherdir)
 
+refset_dir.into { refset_dir_validate; refset_dir_convert; refset_dir_go_test; refset_dir_ec_test; refset_dir_std; refset_dir_g_std; refset_dir_g_std_v2; refset_dir_geneTrees }
 
 /*
  * validate input file
@@ -100,7 +101,7 @@ process validate_input_file {
 
     input:
     file predictions
-    val refset_dir
+    file refset_dir from refset_dir_validate
     val benchmarks
     val community_id
     val method_name
@@ -110,9 +111,18 @@ process validate_input_file {
     file "participant.json" into PARTICIPANT_STUB
 
     """
+    echo "DEBUG: mountpoints"
+    mount
+    echo "END DEBUG"
+    echo
+    #ls -l /home/vre/projects/wrapper_test/javi_tmp/input/SonicParanoid_default.rels.raw.gz
+    ls -la $refset_dir
+	echo
     /benchmark/validate.py --com $community_id --challenges_ids "$benchmarks" --participant "$method_name" --out "participant.json" $refset_dir/mapping.json.gz $predictions
     """
 }
+
+db = Channel.create()
 
 /*
  * extract pairwise predictions and store in darwin compatible database
@@ -124,10 +134,10 @@ process convertPredictions {
     input:
     val file_validated from EXIT_STAT
     file predictions
-    val refset_dir
+    file refset_dir from refset_dir_convert
 
     output:
-    file 'predictions.db' into db
+    file 'predictions.db' into db_go_test,db_ec_test,db_std,db_g_std,db_g_std_v2,db_geneTrees
 
     when:
     file_validated == 0
@@ -138,14 +148,15 @@ process convertPredictions {
 }
 
 
+
 process go_benchmark {
 
     label "darwin"
 
     input:
-    file db from db
+    file db from db_go_test
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_go_test
     val go_evidences
     val community_id
     val result_file_path
@@ -168,9 +179,9 @@ process ec_benchmark {
     label "darwin"
 
     input:
-    file db from db
+    file db from db_ec_test
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_ec_test
     val community_id
     val result_file_path
     // for mountpoint 
@@ -195,9 +206,9 @@ process speciestree_benchmark {
     tag "$clade"
 
     input:
-    file db from db
+    file db from db_std
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_std
     val clade from tree_clades0
     val community_id
     val result_file_path
@@ -223,9 +234,9 @@ process g_speciestree_benchmark {
     tag "$clade"
 
     input:
-    file db from db
+    file db from db_g_std
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_g_std
     val clade from tree_clades
     val community_id
     val result_file_path
@@ -249,9 +260,9 @@ process g_speciestree_benchmark_variant2 {
     tag "$clade"
 
     input:
-    file db from db
+    file db from db_g_std_v2
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_g_std_v2
     val community_id
     val result_file_path
     val clade from tree_clades2
@@ -276,9 +287,9 @@ process reference_genetrees_benchmark {
     tag "$testset"
 
     input:
-    file db from db
+    file db from db_geneTrees
     val method_name
-    val refset_dir
+    file refset_dir from refset_dir_geneTrees
     val testset from genetree_sets
     val community_id
     val result_file_path
