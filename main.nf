@@ -150,7 +150,7 @@ process convertPredictions {
 process scheduleMetrics {
     
     input:
-    file predictions_db
+    file db from predictions_db
     val benchmark from benchmarks_arr
     
     // Setting up the cascade of events
@@ -159,42 +159,48 @@ process scheduleMetrics {
     def m
     switch(benchmark) {
         case "GO":
-            predictions_db.into { db_go_test; predictions_db }
+            db_go_test << db
             break
         case "EC":
-            predictions_db.into { db_ec_test; predictions_db }
+            db_ec_test << db
             break
         case ~/^STD_/:
             m = benchmark =~ /^STD_(.+)$/
             def clade0 = m[0][1]
             if(tree_clades0.contains(clade0)) {
-                predictions_db.into { pred_dup; predictions_db }
-                pred_dup.map {pred_db -> tuple(clade0,pred_db)}.set { db_std }
+                db_std << tuple(clade0,db)
+            } else {
+                println "WARNING: Unmatched STD benchmark $benchmark"
             }
             break
         case ~/^G_STD_/:
             m = benchmark =~ /^G_STD_(.+)$/
             def clade = m[0][1]
             if(tree_clades.contains(clade)) {
-                predictions_db.into { pred_dup; predictions_db }
-                pred_dup.map {pred_db -> tuple(clade,pred_db)}.set { db_g_std }
+                db_g_std << tuple(clade,db)
+            } else {
+                println "WARNING: Unmatched G_STD benchmark $benchmark"
             }
             break
         case ~/^G_STD2_/:
             m = benchmark =~ /^G_STD2_(.+)$/
             def clade2 = m[0][1]
             if(tree_clades2.contains(clade2)) {
-                predictions_db.into { pred_dup; predictions_db }
-                pred_dup.map {pred_db -> tuple(clade2,pred_db)}.set { db_g_std_v2 }
+                db_g_std_v2 << tuple(clade2,db)
+            } else {
+                println "WARNING: Unmatched G_STD2 benchmark $benchmark"
             }
             break
         default:
             if(genetree_sets.contains(benchmark)) {
-                predictions_db.into { pred_dup; predictions_db }
-                pred_dup.map {pred_db -> tuple(benchmark,pred_db)}.set { db_geneTrees }
+                db_geneTrees << tuple(benchmark,db)
+            } else {
+                println "WARNING: Unmatched benchmark $benchmark"
             }
             break
     }
+    // Giving a breath
+    predictions_db << db
 }
 
 
