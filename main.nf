@@ -133,7 +133,6 @@ process convertPredictions {
 
     input:
     val file_validated from EXIT_STAT
-    val benchmarks_arr
     file predictions
     file refset_dir
 
@@ -146,47 +145,55 @@ process convertPredictions {
     """
     /benchmark/map_relations.py --out predictions.db $refset_dir/mapping.json.gz $predictions
     """
+}
+
+process scheduleMetrics {
+    
+    input:
+    file predictions_db
+    val benchmark from benchmarks_arr
+    
     // Setting up the cascade of events
-    for(benchmark in benchmarks_arr) {
-        switch(benchmark) {
-            case "GO":
-                predictions_db.into { db_go_test; predictions_db }
-                break
-            case "EC":
-                predictions_db.into { db_ec_test; predictions_db }
-                db_ec_test <<
-                break
-            case ~/^STD_/:
-                def m = benchmark =~ /^STD_(.+)$/
-                def clade0 = m[0][1]
-                if(tree_clades0.contains(clade0)) {
-                    predictions_db.into { pred_dup; predictions_db }
-                    pred_dup.map {pred_db -> tuple(clade0,pred_db)}.set { db_std }
-                }
-                break
-            case ~/^G_STD_/:
-                def m = benchmark =~ /^G_STD_(.+)$/
-                def clade = m[0][1]
-                if(tree_clades.contains(clade)) {
-                    predictions_db.into { pred_dup; predictions_db }
-                    pred_dup.map {pred_db -> tuple(clade,pred_db)}.set { db_g_std }
-                }
-                break
-            case ~/^G_STD2_/:
-                def m = benchmark =~ /^G_STD2_(.+)$/
-                def clade2 = m[0][1]
-                if(tree_clades2.contains(clade2)) {
-                    predictions_db.into { pred_dup; predictions_db }
-                    pred_dup.map {pred_db -> tuple(clade2,pred_db)}.set { db_g_std_v2 }
-                }
-                break
-            default:
-                if(genetree_sets.contains(benchmark)) {
-                    predictions_db.into { pred_dup; predictions_db }
-                    pred_dup.map {pred_db -> tuple(benchmark,pred_db)}.set { db_geneTrees }
-                }
-                break
-        }
+    exec:
+    
+    def m
+    switch(benchmark) {
+        case "GO":
+            predictions_db.into { db_go_test; predictions_db }
+            break
+        case "EC":
+            predictions_db.into { db_ec_test; predictions_db }
+            break
+        case ~/^STD_/:
+            m = benchmark =~ /^STD_(.+)$/
+            def clade0 = m[0][1]
+            if(tree_clades0.contains(clade0)) {
+                predictions_db.into { pred_dup; predictions_db }
+                pred_dup.map {pred_db -> tuple(clade0,pred_db)}.set { db_std }
+            }
+            break
+        case ~/^G_STD_/:
+            m = benchmark =~ /^G_STD_(.+)$/
+            def clade = m[0][1]
+            if(tree_clades.contains(clade)) {
+                predictions_db.into { pred_dup; predictions_db }
+                pred_dup.map {pred_db -> tuple(clade,pred_db)}.set { db_g_std }
+            }
+            break
+        case ~/^G_STD2_/:
+            m = benchmark =~ /^G_STD2_(.+)$/
+            def clade2 = m[0][1]
+            if(tree_clades2.contains(clade2)) {
+                predictions_db.into { pred_dup; predictions_db }
+                pred_dup.map {pred_db -> tuple(clade2,pred_db)}.set { db_g_std_v2 }
+            }
+            break
+        default:
+            if(genetree_sets.contains(benchmark)) {
+                predictions_db.into { pred_dup; predictions_db }
+                pred_dup.map {pred_db -> tuple(benchmark,pred_db)}.set { db_geneTrees }
+            }
+            break
     }
 }
 
