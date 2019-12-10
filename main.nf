@@ -76,7 +76,7 @@ predictions = file(params.input)
 method_name = params.participant_id.replaceAll("\\s","_")
 refset_dir = file(params.goldstandard_dir, type: 'dir')
 benchmarks = params.challenges_ids
-benchmarks_chan = Channel.from(params.challenges_ids.split(/ +/))
+benchmarks_arr = params.challenges_ids.split(/ +/)
 community_id = params.community_id
 benchmark_data = file(params.assess_dir, type: 'dir')
 go_evidences = params.go_evidences
@@ -149,13 +149,20 @@ process convertPredictions {
     """
 }
 
-refeed_db = Channel.create()
+schedule_chan = Channel.create()
+
+process scheduleChan {
+    file db from predictions_db
+    exec:
+        for(def benchmark in benchmarks_arr) {
+            schedule_chan << tuple(benchmark,db)
+        }
+}
 
 process scheduleMetrics {
     
     input:
-    file db from predictions_db
-    val benchmark from benchmarks_arr
+        set benchmark, file(db) from schedule_chan
     
     // Setting up the cascade of events
     exec:
@@ -203,17 +210,8 @@ process scheduleMetrics {
             }
             break
     }
-    // Giving a breath
-    refeed_db << db
 }
 
-process refeed {
-    input:
-        file db from refeed_db
-    exec:
-        predictions_db << db
-        
-}
 
 
 
