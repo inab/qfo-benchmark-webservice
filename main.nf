@@ -76,7 +76,7 @@ predictions = file(params.input)
 method_name = params.participant_id.replaceAll("\\s","_")
 refset_dir = file(params.goldstandard_dir, type: 'dir')
 benchmarks = params.challenges_ids
-benchmarks_arr = params.challenges_ids.split(/ +/)
+benchmarks_chan = Channel.from(params.challenges_ids.split(/ +/))
 community_id = params.community_id
 benchmark_data = file(params.assess_dir, type: 'dir')
 go_evidences = params.go_evidences
@@ -139,7 +139,7 @@ process convertPredictions {
     file refset_dir
 
     output:
-    file 'predictions.db' into predictions_db
+    file 'predictions.db' into db_go_test , db_ec_test , db_std, db_g_std, db_g_std_v2, db_geneTrees
 
     when:
     file_validated == 0
@@ -149,62 +149,76 @@ process convertPredictions {
     """
 }
 
-schedule_chan = Channel.create()
-
-process scheduleChan {
-    file db from predictions_db
-    exec:
-        for(def benchmark in benchmarks_arr) {
-            schedule_chan << tuple(benchmark,db)
-        }
-}
+c_go = Channel.create()
+c_ec = Channel.create()
+c_g_std = Channel.create()
+c_g_std_v2 = Channel.create()
+c_geneTrees = Channel.create()
 
 process scheduleMetrics {
     
     input:
-        set benchmark, file(db) from schedule_chan
+        val file_validated from EXIT_STAT
+        val benchmark from benchmarks_chan
+    
+    output:
+        val v_go into c_go
+        val v_ec into c_ec
+        val v_std into c_std
+        val v_g_std into c_g_std
+        val v_g_std_v2 into c_g_std_v2
+        val v_geneTrees into c_geneTrees
+    
+    when:
+    file_validated == 0
     
     // Setting up the cascade of events
     exec:
     
     def m
+    v_go = null
+    v_ec = null
+    v_std = null
+    v_g_std = null
+    v_g_std_v2 = null
+    v_geneTrees = null
     switch(benchmark) {
         case "GO":
-            db_go_test << db
+            v_go = benchmark
             break
         case "EC":
-            db_ec_test << db
+            v_ec = benchmark
             break
-        case ~/^STD_/:
+        case ~/^STD_(.+)$/:
             m = benchmark =~ /^STD_(.+)$/
             def clade0 = m[0][1]
             if(tree_clades0.contains(clade0)) {
-                db_std << tuple(clade0,db)
+                v_std = clade0
             } else {
                 println "WARNING: Unmatched STD benchmark $benchmark"
             }
             break
-        case ~/^G_STD_/:
+        case ~/^G_STD_(.+)$/:
             m = benchmark =~ /^G_STD_(.+)$/
             def clade = m[0][1]
             if(tree_clades.contains(clade)) {
-                db_g_std << tuple(clade,db)
+                v_g_std = clade
             } else {
                 println "WARNING: Unmatched G_STD benchmark $benchmark"
             }
             break
-        case ~/^G_STD2_/:
+        case ~/^G_STD2_(.+)$/:
             m = benchmark =~ /^G_STD2_(.+)$/
             def clade2 = m[0][1]
             if(tree_clades2.contains(clade2)) {
-                db_g_std_v2 << tuple(clade2,db)
+                v_g_std_v2 = clade2
             } else {
                 println "WARNING: Unmatched G_STD2 benchmark $benchmark"
             }
             break
         default:
             if(genetree_sets.contains(benchmark)) {
-                db_geneTrees << tuple(benchmark,db)
+                v_geneTrees = benchmark
             } else {
                 println "WARNING: Unmatched benchmark $benchmark"
             }
@@ -220,7 +234,7 @@ process go_benchmark {
     label "darwin"
 
     input:
-    file db from db_go_test
+    set val(benchmark), db  from c_go.filter({ it != null }).combine(db_go_test)
     val method_name
     file refset_dir
     val go_evidences
@@ -242,7 +256,7 @@ process ec_benchmark {
     label "darwin"
 
     input:
-    file db from db_ec_test
+    set val(benchmark), db  from c_ec.filter({ it != null }).combine(db_ec_test)
     val method_name
     file refset_dir
     val community_id
@@ -264,10 +278,9 @@ process speciestree_benchmark {
     tag "$clade"
 
     input:
-    file db from db_std
+    set val(clade), db  from c_std.filter({ it != null }).combine(db_std)
     val method_name
     file refset_dir
-    val clade from tree_clades0
     val community_id
     file result_file_path
     // for mountpoint 
@@ -288,7 +301,7 @@ process g_speciestree_benchmark {
     tag "$clade"
 
     input:
-    set clade, file(db) from db_g_std
+    set val(clade), db  from c_g_std.filter({ it != null }).combine(db_g_std)
     val method_name
     file refset_dir
     val community_id
@@ -309,7 +322,7 @@ process g_speciestree_benchmark_variant2 {
     tag "$clade"
 
     input:
-    set clade, file(db) from db_g_std_v2
+    set val(clade), db  from c_g_std_v2.filter({ it != null }).combine(db_g_std_v2)
     val method_name
     file refset_dir
     val community_id
@@ -331,7 +344,7 @@ process reference_genetrees_benchmark {
     tag "$testset"
 
     input:
-    set testset, file(db) from db_geneTrees
+    set val(testset), db   from c_geneTrees.filter({ it != null }).combine(db_geneTrees)
     val method_name
     file refset_dir
     val community_id
