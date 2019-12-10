@@ -76,7 +76,7 @@ predictions = file(params.input)
 method_name = params.participant_id.replaceAll("\\s","_")
 refset_dir = file(params.goldstandard_dir, type: 'dir')
 benchmarks = params.challenges_ids
-benchmarks_arr = params.challenges_ids.split(/ +/)
+benchmarks_chan = Channel.from(params.challenges_ids.split(/ +/))
 community_id = params.community_id
 benchmark_data = file(params.assess_dir, type: 'dir')
 go_evidences = params.go_evidences
@@ -124,6 +124,8 @@ db_g_std = Channel.create()
 db_g_std_v2 = Channel.create()
 db_geneTrees = Channel.create()
 
+predictions_db = Channel.create()
+
 /*
  * extract pairwise predictions and store in darwin compatible database
  */
@@ -146,6 +148,8 @@ process convertPredictions {
     /benchmark/map_relations.py --out predictions.db $refset_dir/mapping.json.gz $predictions
     """
 }
+
+refeed_db = Channel.create()
 
 process scheduleMetrics {
     
@@ -200,7 +204,15 @@ process scheduleMetrics {
             break
     }
     // Giving a breath
-    predictions_db << db
+    refeed_db << db
+}
+
+process refeed {
+    input:
+        file db from refeed_db
+    exec:
+        predictions_db << db
+        
 }
 
 
