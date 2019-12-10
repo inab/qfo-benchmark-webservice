@@ -214,7 +214,6 @@ process go_benchmark {
     val method_name
     file refset_dir
     val go_evidences
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
@@ -236,7 +235,6 @@ process ec_benchmark {
     file db from db_ec_test
     val method_name
     file refset_dir
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
@@ -260,7 +258,6 @@ process speciestree_benchmark {
     val method_name
     file refset_dir
     val clade from tree_clades0
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
@@ -268,10 +265,6 @@ process speciestree_benchmark {
 
     output:
     file "STD_${clade}.json" into STD_STUB
-
-    when:
-    benchmarks_arr.contains("STD_$clade")
-
 
     """
     /benchmark/SpeciesTreeDiscordanceTest.sh -o "${result_file_path}/STD_${clade}" -a "STD_${clade}.json" -c "$community_id" -p $clade -m 0 $db "$method_name" $refset_dir
@@ -288,7 +281,6 @@ process g_speciestree_benchmark {
     set clade, file(db) from db_g_std
     val method_name
     file refset_dir
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
@@ -310,7 +302,6 @@ process g_speciestree_benchmark_variant2 {
     set clade, file(db) from db_g_std_v2
     val method_name
     file refset_dir
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
@@ -333,7 +324,6 @@ process reference_genetrees_benchmark {
     set testset, file(db) from db_geneTrees
     val method_name
     file refset_dir
-    val benchmarks_arr
     val community_id
     file result_file_path
     // for mountpoint 
